@@ -252,7 +252,7 @@ public class MainFrame extends javax.swing.JFrame {
                     createChart(dataInstance, forecastAttribute);
                     // forecast for 12 units (months) beyond the end of the
                     // training data
-                    createForecastChart(forecaster.forecast(12), forecastAttribute);
+                    createForecastChart(dataInstance, forecaster.forecast(12), forecastAttribute);
                     // output the predictions. Outer list is over the steps; inner list is over
                     // the targets
                 }
@@ -262,24 +262,42 @@ public class MainFrame extends javax.swing.JFrame {
             Logger.getLogger(MainFrame.class.getName()).log(Level.SEVERE, null, ex);
         }
     }//GEN-LAST:event_startForecastButtonActionPerformed
-    void createForecastChart(List<List<NumericPrediction>> forecast, List<Attribute> forecastAttribute) {
-        XYDataset dataset = createForecastDataSource(forecast, forecastAttribute);
+    void createForecastChart(Instances dataInstance, List<List<NumericPrediction>> forecast, List<Attribute> forecastAttribute) throws ParseException {
+        XYDataset dataset = createForecastDataSource(dataInstance, forecast, forecastAttribute);
+        JFreeChart chart = ChartFactory.createTimeSeriesChart("Forecasted", "Date", "Values", dataset, true, true, false);
+
+        final ChartPanel chartPanel = new ChartPanel(chart);
+        chartPanel.setPreferredSize(new java.awt.Dimension(560, 370));
+        chartPanel.setMouseZoomable(true, false);
+        this.chartPanel.add(chartPanel);
+        this.chartPanel.setVisible(true);
+        this.revalidate();
+        this.repaint();
         //TODO: Create chart
     }
 
-    XYDataset createForecastDataSource(List<List<NumericPrediction>> forecast, List<Attribute> forecastAttribute) {
+    XYDataset createForecastDataSource(Instances dataInstance, List<List<NumericPrediction>> forecast, List<Attribute> forecastAttribute) throws ParseException {
         //TODO: Create data source
         TimeSeriesCollection collection = new TimeSeriesCollection();
         for (Attribute attribute : forecastAttribute) {
             collection.addSeries(new TimeSeries(attribute.name()));
         }
+        Attribute dateField = (Attribute) this.timeStampFieldCombobox.getSelectedItem();
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+        int dataSize = dataInstance.size();
+        int forecasetDataStartIndex = dataSize - 12;
+        Instance instance = null;    
         for (int i = 0; i < forecast.size(); i++) {
             List<NumericPrediction> predsAtStep = forecast.get(i);
+            instance = dataInstance.get(forecasetDataStartIndex + i);
+            Date date = dateFormat.parse(instance.stringValue(dateField));
+            RegularTimePeriod period = RegularTimePeriod.createInstance(Second.class, date, TimeZone.getDefault());
             for (int j = 0; j < predsAtStep.size(); j++) {
                 Attribute attr = forecastAttribute.get(j);
                 // collection.getSeries(attr.name()).add();
                 NumericPrediction predForTarget = predsAtStep.get(j);
                 System.out.print("" + predForTarget.predicted() + " ");
+                collection.getSeries(attr.name()).add(period, predForTarget.predicted());
             }
             System.out.println();
         }
